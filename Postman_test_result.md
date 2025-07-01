@@ -1,5 +1,5 @@
 
-# 1. 认证相关API(authAPI)
+# 1. 认证相关API（authAPI）
 ## 1.1 用户注册
 - **方法**：POST  
 - **URL**：`http://localhost:3000/api/auth/register`
@@ -428,7 +428,6 @@
 # 5.WebRTC信令API（signalingAPI）
 
 ## 5.1 发送Offer
-
 * **方法**：POST
 * **URL**：`http://localhost:3000/api/signaling/offer?targetUserId={id}`
 * **Headers**：`Authorization: Bearer {token}`，`Content-Type: application/json`
@@ -611,3 +610,183 @@
 }
 ```
 
+
+# 8. 错误场景测试
+
+## 8.1. 未授权访问（无 token 或 token 错误）
+- **接口**：`POST `
+- `http://localhost:3000/api/signaling/offer`
+- **Headers**：不加 Authorization 或乱写
+- **Body**：
+
+  ```json
+{
+	"targetUserId": 2,
+	"offer": {
+		"type": "offer",
+		"sdp": "xxxx"
+	}
+}
+  ```
+*response*
+  ```json
+{
+	"success": false,
+	"message": "Not authenticated",
+	"error": "UNAUTHORIZED"
+}
+  ```
+或
+```JSON
+{
+	"success": false,
+	"message": "Token无效",
+	"error": "UNAUTHORIZED"
+}
+```
+
+## 8.2. 缺少参数
+- **接口**：`POST `
+- `http://localhost:3000/api/signaling/offer`
+- **Headers**：带正确 token
+- **Body**（漏掉 offer）：
+
+```json
+{
+	"targetUserId": 2
+}
+```
+*response*
+  ```json
+{
+	"success": false,
+	"message": "请求参数错误",
+	"error": "BAD_REQUEST",
+	"details": [
+	{
+		"type": "missing",
+		"loc": [
+		"body",
+		"offer"
+		],
+		"msg": "Field required",
+		"input": {
+			"targetUserId": 2
+		}
+	}
+	]
+}
+  ```
+## 8.3. 参数类型错误
+- **接口**：`POST`
+- `http://localhost:3000/api/signaling/offer`
+- **Headers**：带正确 token
+- **Body**（targetUserId 传字符串）：
+
+```json
+{
+	"targetUserId": "abc",
+	"offer": {
+		"type": "offer",
+		"sdp": "xxxx"
+	}
+}
+```
+*response*
+```json
+{
+    "success": false,
+    "message": "请求参数错误",
+    "error": "BAD_REQUEST",
+    "details": [
+        {
+            "type": "int_parsing",
+            "loc": [
+                "body",
+                "targetUserId"
+            ],
+            "msg": "Input should be a valid integer, unable to parse string as an integer",
+            "input": "abc"
+        }
+    ]
+}
+```
+## 8.4. 资源不存在
+- **接口**：`GET `
+- `http://localhost:3000/api/keys/public/99999`
+- **Headers**：带正确 token
+- **Body**：无
+
+*response*
+```json
+{
+	"success": false,
+	"message": "公钥不存在",
+	"error": "NOT_FOUND"
+}
+```
+## 8.5. 用户名或邮箱已存在
+- **接口**：`POST`
+- ` http://localhost:3000/api/auth/register`
+- **Body**：
+
+```json
+{
+	"username": "testuser6",
+	"email": "testuser@example.com",
+	"password": "123456"
+}
+```
+（用已注册过的用户名或邮箱）
+*response*
+```json
+{
+    "success": false,
+    "message": "用户名或邮箱已存在",
+    "error": "400"
+}
+```
+
+## 8.6. 登录密码错误
+- **接口**：`POST /api/auth/login`
+- **Body**：
+
+```json
+{
+	"username": "testuser",
+	"password": "wrongpassword"
+}
+```
+*response*
+```json
+{
+    "success": false,
+    "message": "用户名或密码错误",
+    "error": "UNAUTHORIZED"
+}
+```
+## 8.7. 无权限操作
+- **接口**：`DELETE /api/messages/123`
+- **Headers**：用非消息主人的 token
+- **Body**：无
+
+*response*
+```json
+{
+	"success": false,
+	"message": "消息不存在",
+	"error": "NOT_FOUND"
+}
+```
+## 8.8. Token 过期
+- **接口**：用过期 token 访问任意需要认证的接口
+- **Body**：如上
+
+*response*
+```json
+{
+    "success": false,
+    "message": "Token无效",
+    "error": "UNAUTHORIZED"
+}
+```
