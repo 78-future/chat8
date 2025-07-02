@@ -336,61 +336,69 @@ function getConnectionMethod() {
 }
 
 function formatTime(timestamp) {
-  // 确保时间戳格式正确
-  let dateStr = timestamp;
-  
-  // 处理不同格式的时间戳
-  if (typeof timestamp === 'string') {
-    if (timestamp.endsWith('Z')) {
-      // UTC时间格式，保持原样
-      dateStr = timestamp;
-    } else if (timestamp.includes('T') && !timestamp.endsWith('Z')) {
-      // ISO格式但没有Z后缀，添加Z表示UTC
-      dateStr = timestamp + 'Z';
-    } else if (!timestamp.includes('T')) {
-      // 简单的时间戳，添加UTC标识
-      dateStr = timestamp + 'Z';
+  try {
+    // 处理不同格式的时间戳
+    let date;
+    
+    if (typeof timestamp === 'number') {
+      // 数字时间戳
+      date = new Date(timestamp);
+    } else if (typeof timestamp === 'string') {
+      // 字符串时间戳
+      if (timestamp.includes('T')) {
+        // ISO格式
+        date = new Date(timestamp);
+      } else {
+        // 简单格式，尝试解析
+        date = new Date(timestamp);
+      }
+    } else {
+      // 其他格式，直接尝试转换
+      date = new Date(timestamp);
     }
-  }
-  
-  const date = new Date(dateStr);
-  const now = new Date();
-  
-  // 检查日期是否有效
-  if (isNaN(date.getTime())) {
-    console.warn('无效的时间戳:', timestamp);
-    return '无效时间';
-  }
-  
-  // 获取今天的日期字符串（本地时区）
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  
-  const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const yesterdayDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-  
-  if (messageDate.getTime() === todayDate.getTime()) {
-    // 今天的消息只显示时间
-    return date.toLocaleTimeString('zh-CN', { 
-      hour: '2-digit', 
-      minute: '2-digit'
-    });
-  } else if (messageDate.getTime() === yesterdayDate.getTime()) {
-    // 昨天的消息显示"昨天 时间"
-    return '昨天 ' + date.toLocaleTimeString('zh-CN', { 
-      hour: '2-digit', 
-      minute: '2-digit'
-    });
-  } else {
-    // 其他日期显示完整的月日和时间
-    return date.toLocaleString('zh-CN', { 
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit', 
-      minute: '2-digit'
-    });
+    
+    // 检查日期是否有效
+    if (isNaN(date.getTime())) {
+      console.warn('无效的时间戳:', timestamp);
+      return '无效时间';
+    }
+    
+    // 获取当前时间（本地时区）
+    const now = new Date();
+    
+    // 获取消息日期（本地时区）
+    const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    // 计算昨天的日期
+    const yesterday = new Date(todayDate);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // 比较日期
+    if (messageDate.getTime() === todayDate.getTime()) {
+      // 今天的消息只显示时间
+      return date.toLocaleTimeString('zh-CN', { 
+        hour: '2-digit', 
+        minute: '2-digit'
+      });
+    } else if (messageDate.getTime() === yesterday.getTime()) {
+      // 昨天的消息显示"昨天 时间"
+      return '昨天 ' + date.toLocaleTimeString('zh-CN', { 
+        hour: '2-digit', 
+        minute: '2-digit'
+      });
+    } else {
+      // 其他日期显示完整的月日和时间
+      return date.toLocaleString('zh-CN', { 
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit', 
+        minute: '2-digit'
+      });
+    }
+  } catch (error) {
+    console.error('formatTime错误:', error, timestamp);
+    return '时间错误';
   }
 }
 

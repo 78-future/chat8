@@ -354,7 +354,7 @@ class MessageDBService:
             json_file_path = os.path.join(DB_STORAGE_DIR, f'user_{user_id}_messages.json')
             
             if not os.path.exists(json_file_path):
-                print(f"用户 {user_id} 的JSON文件不存在，跳过迁移")
+                # 用户的JSON文件不存在，跳过迁移
                 return True
             
             # 读取JSON数据
@@ -370,7 +370,7 @@ class MessageDBService:
                 if MessageDBService.add_message(user_id, msg):
                     success_count += 1
             
-            print(f"用户 {user_id} 迁移完成: {success_count}/{len(json_messages)} 条消息")
+            # 用户迁移完成
             
             # 备份原JSON文件
             backup_path = json_file_path + '.backup'

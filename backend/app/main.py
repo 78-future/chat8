@@ -1,7 +1,8 @@
 from fastapi import FastAPI, WebSocket, Depends
+from contextlib import asynccontextmanager
 from websocket.manager import ConnectionManager
 from fastapi.middleware.cors import CORSMiddleware
-from api.v1.endpoints import friends, messages, keys, auth, presence, signaling, avatar, security, local_storage, upload
+from api.v1.endpoints import friends, messages, keys, auth, signaling, avatar, security, local_storage, upload, user_status
 from api import steganography
 from websocket.events import websocket_endpoint
 from fastapi.staticfiles import StaticFiles
@@ -11,9 +12,7 @@ from fastapi.exception_handlers import RequestValidationError
 from fastapi.exceptions import HTTPException
 from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 from core.security import decode_access_token
-from services.unified_presence_service import unified_presence
-
-app = FastAPI()
+from services.user_states_update import initialize_user_states_service, cleanup_user_states_service
 
 # 创建 ConnectionManager 单例
 connection_manager = ConnectionManager()
@@ -22,15 +21,20 @@ connection_manager = ConnectionManager()
 def get_connection_manager():
     return connection_manager
 
-@app.on_event("startup")
-async def startup_event():
-    """应用启动时初始化服务"""
-    await unified_presence.start_service()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 启动时初始化用户状态服务
+    user_states_service = initialize_user_states_service(connection_manager)
+    await user_states_service.start_heartbeat_monitor()
+    print("[应用启动] 用户状态服务已启动")
+    
+    yield
+    
+    # 关闭时清理用户状态服务
+    await cleanup_user_states_service()
+    print("[应用关闭] 用户状态服务已清理")
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """应用关闭时清理资源"""
-    await unified_presence.stop_service()
+app = FastAPI(lifespan=lifespan)
 
 
 # 配置CORS
@@ -60,7 +64,7 @@ app.include_router(keys.router, prefix="/api")
 app.include_router(signaling.router, prefix="/api")
 app.include_router(avatar.router, prefix="/api")
 app.include_router(security.router, prefix="/api")
-app.include_router(presence.router, prefix="/api")
+app.include_router(user_status.router, prefix="/api")
 app.include_router(local_storage.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
 app.include_router(steganography.router, prefix="/api/steganography", tags=["steganography"])

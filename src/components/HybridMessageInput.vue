@@ -280,7 +280,7 @@ async function handleSteganographyUpload(file) {
       fileName: steganographyFile.name,
       hiddenMessage: true, // 前端标记
       originalText: message.value.trim(), // 保存原始文本用于显示
-      timestamp: Date.now()
+      timestamp: new Date().toISOString()
     };
     
     if (burnMode.value) {
@@ -328,7 +328,7 @@ async function sendMessage() {
     const messageData = {
       content: message.value.trim(),
       type: 'text',
-      timestamp: Date.now()
+      timestamp: new Date().toISOString()
     };
     
     // 添加阅后即焚设置

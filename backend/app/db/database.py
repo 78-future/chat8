@@ -1,6 +1,6 @@
 import os
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from .models import Base
 
 # 使用绝对路径确保数据库文件始终在backend/app目录下
@@ -15,3 +15,11 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+
+def get_db() -> Session:
+    """获取数据库会话的依赖项"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

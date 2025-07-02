@@ -35,12 +35,14 @@ def send_message(db: Session, from_id: int, to_id: int, content: str, encrypted:
         db.refresh(msg)
         
         if message_type == 'image':
-            print(f"[MESSAGE_SERVICE] 图片消息已保存到服务器数据库: ID={msg.id}, 发送者={from_id}, 接收者={to_id}")
-            print(f"[MESSAGE_SERVICE] 图片信息: file_path={file_path}, file_name={file_name}")
+            # 图片消息已保存到服务器数据库
+            pass
         else:
-            print(f"[MESSAGE_SERVICE] 接收方不在线，消息已暂存到服务器数据库: ID={msg.id}, 类型={message_type}, 发送者={from_id}, 接收者={to_id}")
+            # 接收方不在线，消息已暂存到服务器数据库
+            pass
     else:
-        print(f"[MESSAGE_SERVICE] 接收方在线，普通消息不保存到服务器数据库，直接转发")
+        # 接收方在线，普通消息不保存到服务器数据库，直接转发
+        pass
     
     # 始终保存到发送方的本地数据库
     try:
@@ -61,9 +63,10 @@ def send_message(db: Session, from_id: int, to_id: int, content: str, encrypted:
             user_id=from_id,
             message_data=message_data
         )
-        print(f"[MESSAGE_SERVICE] 消息已保存到发送方本地数据库: 发送者={from_id}")
+        # 消息已保存到发送方本地数据库
     except Exception as e:
-        print(f"[MESSAGE_SERVICE] 保存到发送方本地数据库失败: {str(e)}")
+        # 保存到发送方本地数据库失败
+        pass
     
     return msg
 
@@ -74,13 +77,13 @@ def delete_server_message(db: Session, message_id: int):
         if msg:
             db.delete(msg)
             db.commit()
-            print(f"[MESSAGE_SERVICE] 服务器数据库中的消息已删除: ID={message_id}")
+            # 服务器数据库中的消息已删除
             return True
         else:
-            print(f"[MESSAGE_SERVICE] 要删除的消息不存在: ID={message_id}")
+            # 要删除的消息不存在
             return False
     except Exception as e:
-        print(f"[MESSAGE_SERVICE] 删除服务器消息失败: {str(e)}")
+        # 删除服务器消息失败
         return False
 
 def get_offline_messages(db: Session, user_id: int):
@@ -91,10 +94,10 @@ def get_offline_messages(db: Session, user_id: int):
             models.Message.to_id == user_id
         ).order_by(models.Message.timestamp.asc()).all()
         
-        print(f"[MESSAGE_SERVICE] 获取到 {len(offline_messages)} 条离线消息，用户ID: {user_id}")
+        # 获取到离线消息
         return offline_messages
     except Exception as e:
-        print(f"[MESSAGE_SERVICE] 获取离线消息失败: {str(e)}")
+        # 获取离线消息失败
         return []
 
 def get_message_history(db: Session, user_id: int, peer_id: int, page: int = 1, limit: int = 50):

@@ -15,8 +15,7 @@ class HybridMessaging {
     this.isReconnecting = false;       // 重连状态标志
     this.reconnectAttempts = 0;        // 重连尝试次数
     this.maxReconnectAttempts = 5;     // 最大重连次数
-    this.preConnectQueue = new Set();  // 预连接队列
-    this.connectionAttempts = new Map(); // 连接尝试记录 { userId: { attempts: number, lastAttempt: timestamp } }
+    // 预连接功能已删除
   }
 
   // 初始化混合消息系统
@@ -30,13 +29,8 @@ class HybridMessaging {
     await this.connectSignalingServer();
     console.log('[初始化] WebSocket连接已建立');
     
-    // 注册用户为支持P2P
-    try {
-      await this.registerP2PCapability();
-      console.log('[初始化] P2P能力注册成功');
-    } catch (error) {
-      console.warn('[初始化] P2P能力注册失败，但系统将继续运行:', error.message);
-    }
+    // P2P能力注册功能已移除
+    console.log('[初始化] P2P能力注册功能已移除');
     
     // 设置页面关闭时的清理逻辑
     this.setupBeforeUnloadHandler();
@@ -62,21 +56,34 @@ class HybridMessaging {
         // 启动连接健康检查
         this.startConnectionHealthCheck();
         
-        // WebSocket连接建立时立即发送在线状态给好友
-        try {
-          // 动态导入hybridApi以避免循环依赖
-          const { hybridApi } = await import('@/api/hybrid-api.js');
-          await hybridApi.setOnlineStatus('online');
-        } catch (error) {
-          console.warn('[状态同步] 发送在线状态失败:', error);
-        }
+        // 在线状态同步功能已移除
+        console.log('[状态同步] 在线状态同步功能已移除');
         
         resolve();
       };
       
-      this.ws.onerror = reject;
+      this.ws.onerror = (error) => {
+        console.error('WebSocket连接错误:', error);
+        console.error('WebSocket URL:', `ws://localhost:8000/ws/${this.currentUserId}?token=${this.token}`);
+        console.error('Token存在:', !!this.token);
+        console.error('Token长度:', this.token ? this.token.length : 0);
+        reject(error);
+      };
       this.ws.onclose = async (event) => {
         console.log('信令服务器连接断开', { code: event.code, reason: event.reason });
+        
+        // 详细的错误代码分析
+        if (event.code === 1008) {
+          console.error('❌ WebSocket认证失败 (错误代码1008)');
+          console.error('可能原因: Token无效、过期或用户ID不匹配');
+          console.error('当前Token:', this.token ? `${this.token.substring(0, 20)}...` : 'null');
+          console.error('当前用户ID:', this.currentUserId);
+        } else if (event.code === 1006) {
+          console.error('❌ WebSocket异常关闭 (错误代码1006)');
+          console.error('可能原因: 网络连接问题或服务器无响应');
+        } else {
+          console.log(`WebSocket关闭代码: ${event.code}, 原因: ${event.reason || '未知'}`);
+        }
         
         // 清理所有P2P连接
         this.p2pConnections.forEach((connection, userId) => {
@@ -97,14 +104,8 @@ class HybridMessaging {
         });
         this.peerConnections.clear();
         
-        // WebSocket断开时立即发送离线状态给好友
-        try {
-          // 动态导入hybridApi以避免循环依赖
-          const { hybridApi } = await import('@/api/hybrid-api.js');
-          await hybridApi.setOnlineStatus('offline');
-        } catch (error) {
-          console.warn('[状态同步] 发送离线状态失败:', error);
-        }
+        // 离线状态同步功能已移除
+        console.log('[状态同步] 离线状态同步功能已移除');
         
         // 智能重连逻辑
         if (!this.isReconnecting && this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -171,6 +172,10 @@ class HybridMessaging {
           }
           break;
 
+        case 'heartbeat_response':
+          console.log('[心跳] 收到服务器心跳响应');
+          break;
+
         case 'presence':
           // 统一状态管理系统发送的新格式消息
           // 检查消息格式：后端直接发送presence对象，包含userId, status, isOnline等字段
@@ -207,76 +212,58 @@ class HybridMessaging {
           }
           break;
 
+        case 'user_status_change':
+          // 处理用户状态变化消息（新的用户状态服务发送的消息）
+          if (data.data && data.data.user_id && typeof data.data.user_id === 'number' && 
+              data.data.status && typeof data.data.status === 'string') {
+            console.log(`[状态变化] 用户 ${data.data.username}(${data.data.user_id}) 状态变为: ${data.data.status}`);
+            if (this.onUserStatusChanged) {
+              this.onUserStatusChanged({
+                userId: data.data.user_id,
+                username: data.data.username,
+                status: data.data.status,
+                isOnline: data.data.status === 'online',
+                timestamp: data.data.timestamp
+              });
+            }
+          } else {
+            console.warn('收到无效的user_status_change消息:', data);
+          }
+          break;
+
+        case 'friends_status':
+          // 处理在线好友列表消息
+          if (data.data && data.data.online_friends && Array.isArray(data.data.online_friends)) {
+            console.log(`[好友状态] 收到 ${data.data.online_friends.length} 个在线好友信息`);
+            if (this.onUserStatusChanged) {
+              // 为每个在线好友触发状态变化回调
+              data.data.online_friends.forEach(friend => {
+                this.onUserStatusChanged({
+                  userId: friend.user_id,
+                  username: friend.username,
+                  status: friend.status,
+                  isOnline: friend.status === 'online',
+                  lastSeen: friend.last_seen
+                });
+              });
+            }
+          } else {
+            console.warn('收到无效的friends_status消息:', data);
+          }
+          break;
+
         default:
           console.warn('未处理的消息类型:', data.type);
       }
     };
   }
 
-  // 注册P2P能力
+  // P2P能力注册功能已移除
   async registerP2PCapability() {
-    try {
-      // 动态导入hybridApi以避免循环依赖
-      const { hybridApi } = await import('@/api/hybrid-api.js');
-      const result = await hybridApi.registerP2PCapability({
-        supportsP2P: true,
-        capabilities: ['webrtc', 'datachannel']
-      });
-      
-      // 验证注册是否成功
-      const statusCheck = await this.checkUserStatus(this.currentUserId);
-      
-    } catch (error) {
-      console.error('[P2P] P2P能力注册失败:', error);
-      throw error; // 重新抛出错误，让调用者知道注册失败
-    }
+    console.log('[P2P] P2P能力注册功能已移除');
   }
 
-  // 预连接到指定用户（在打开聊天窗口时调用）
-  async preConnectToUser(toUserId) {
-    // 检查是否已经有连接
-    if (this.p2pConnections.has(toUserId)) {
-      return { success: true, method: 'P2P', existing: true };
-    }
-    
-    // 检查连接尝试频率限制
-    const attempts = this.connectionAttempts.get(toUserId);
-    const now = Date.now();
-    if (attempts && attempts.attempts >= 3 && (now - attempts.lastAttempt) < 60000) {
-      return { success: false, reason: 'rate_limited' };
-    }
-    
-    // 检查用户状态
-    try {
-      const userStatus = await this.checkUserStatus(toUserId);
-      
-      if (!userStatus.online || !userStatus.supportsP2P) {
-        return { success: false, reason: 'not_supported' };
-      }
-      
-      // 记录连接尝试
-      const currentAttempts = attempts ? attempts.attempts + 1 : 1;
-      this.connectionAttempts.set(toUserId, {
-        attempts: currentAttempts,
-        lastAttempt: now
-      });
-      
-      // 尝试建立P2P连接
-      this.preConnectQueue.add(toUserId);
-      const connection = await this.establishP2PConnection(toUserId);
-      this.preConnectQueue.delete(toUserId);
-      
-      // 重置连接尝试计数
-      this.connectionAttempts.delete(toUserId);
-      
-      return { success: true, method: 'P2P', connection };
-      
-    } catch (error) {
-      this.preConnectQueue.delete(toUserId);
-      console.warn(`[预连接] 用户 ${toUserId} P2P连接失败:`, error);
-      return { success: false, reason: 'connection_failed', error: error.message };
-    }
-  }
+  // 预连接功能已删除
   
   // 智能发送消息（自动选择P2P或C/S）
   async sendMessage(toUserId, content) {
@@ -303,11 +290,11 @@ class HybridMessaging {
         }
       }
       
-      // 检查用户状态并尝试即时P2P连接（如果没有预连接）
+      // 检查用户状态并尝试即时P2P连接
       const userStatus = await this.checkUserStatus(toUserId);
       console.log(`[发送消息] 用户状态:`, userStatus);
       
-      if (userStatus.online && userStatus.supportsP2P && !this.preConnectQueue.has(toUserId)) {
+      if (userStatus.online && userStatus.supportsP2P) {
         console.log(`[发送消息] 用户在线且支持P2P，尝试即时P2P连接`);
         try {
           const p2pResult = await this.sendP2PMessage(toUserId, content);
@@ -342,24 +329,34 @@ class HybridMessaging {
       const { hybridApi } = await import('../api/hybrid-api.js');
       const response = await hybridApi.getUserStatus(userId);
       
-      // 修复：后端返回格式是 {success: true, data: status}，需要获取 response.data.data
-      const userStatus = response.data?.data || response.data;
+      // 后端返回格式是 {success: true, data: {...}}
+      const userStatus = response.data?.data;
       console.log(`[状态检查] API响应:`, response.data);
       console.log(`[状态检查] 用户 ${userId} 状态:`, userStatus);
+      
+      if (!userStatus) {
+        console.warn(`[状态检查] 用户 ${userId} 状态数据为空`);
+        return { online: false, supportsP2P: false };
+      }
+      
+      // 根据后端返回的字段判断用户状态
+      const isOnline = userStatus.status === 'online' && userStatus.has_connection;
+      const supportsP2P = isOnline; // 如果用户在线且有连接，则支持P2P
+      
       console.log(`[状态检查] 详细字段检查:`, {
-        'userStatus.online': userStatus.online,
-        'userStatus.isOnline': userStatus.isOnline,
-        'userStatus.supportsP2P': userStatus.supportsP2P,
-        'userStatus.p2pCapability': userStatus.p2pCapability,
-        'userStatus.websocketConnected': userStatus.websocketConnected
+        'userStatus.status': userStatus.status,
+        'userStatus.has_connection': userStatus.has_connection,
+        'userStatus.last_seen': userStatus.last_seen,
+        'userStatus.last_heartbeat': userStatus.last_heartbeat
       });
       
       // 确保返回标准化的状态格式
       const normalizedStatus = {
-        online: userStatus.online || userStatus.isOnline || false,
-        supportsP2P: userStatus.supportsP2P || userStatus.p2pCapability || false,
-        lastSeen: userStatus.lastSeen,
-        websocketConnected: userStatus.websocketConnected || false
+        online: isOnline,
+        supportsP2P: supportsP2P,
+        lastSeen: userStatus.last_seen,
+        websocketConnected: userStatus.has_connection,
+        lastHeartbeat: userStatus.last_heartbeat
       };
       
       console.log(`[状态检查] 标准化后的用户 ${userId} 状态:`, normalizedStatus);
@@ -422,11 +419,56 @@ class HybridMessaging {
   // 建立P2P连接
   async establishP2PConnection(toUserId) {
     return new Promise(async (resolve, reject) => {
+      let timeout;
+      let isResolved = false;
+      
+      const cleanup = () => {
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
+        this.peerConnections.delete(toUserId);
+      };
+      
+      const safeResolve = (result) => {
+        if (!isResolved) {
+          isResolved = true;
+          cleanup();
+          resolve(result);
+        }
+      };
+      
+      const safeReject = (error) => {
+        if (!isResolved) {
+          isResolved = true;
+          cleanup();
+          reject(error);
+        }
+      };
+      
       try {
         // 创建WebRTC连接
         const peerConnection = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
         });
+
+        // 监听连接状态变化
+        peerConnection.onconnectionstatechange = () => {
+          console.log(`[P2P] 连接状态变化: ${peerConnection.connectionState}`);
+          if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'closed') {
+            safeReject(new Error(`P2P连接失败: 连接状态=${peerConnection.connectionState}`));
+          }
+        };
+        
+        peerConnection.oniceconnectionstatechange = () => {
+          console.log(`[P2P] ICE连接状态变化: ${peerConnection.iceConnectionState}`);
+          if (peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'closed') {
+            safeReject(new Error(`P2P连接失败: ICE状态=${peerConnection.iceConnectionState}`));
+          }
+        };
 
         // 创建数据通道
         const dataChannel = peerConnection.createDataChannel('messages', {
@@ -436,7 +478,6 @@ class HybridMessaging {
         // 数据通道事件处理
         dataChannel.onopen = () => {
           console.log(`P2P连接已建立: ${toUserId}`);
-          clearTimeout(timeout); // 清除超时定时器
           this.p2pConnections.set(toUserId, dataChannel);
           
           // 通知store更新P2P连接状态
@@ -444,7 +485,7 @@ class HybridMessaging {
             this.onP2PStatusChanged(toUserId, 'connected');
           }
           
-          resolve(dataChannel);
+          safeResolve(dataChannel);
         };
 
         dataChannel.onmessage = async (event) => {
@@ -452,18 +493,16 @@ class HybridMessaging {
           if (message.type === 'direct_message' && this.onMessageReceived) {
             const msgData = {
               from: message.from,
-              to: this.currentUserId, // P2P消息是发给当前用户的
+              to: this.currentUserId,
               content: message.content,
               timestamp: message.timestamp,
               method: 'P2P',
-              // 添加图片和隐写术消息支持
               messageType: message.messageType || 'text',
               filePath: message.filePath || null,
               fileName: message.fileName || null,
               hiddenMessage: message.hiddenMessage || null
             };
             
-            // 存入本地数据库
             try {
               await addMessage(msgData);
             } catch (dbError) {
@@ -483,14 +522,12 @@ class HybridMessaging {
 
         dataChannel.onerror = (error) => {
           console.error(`[P2P] 数据通道错误:`, error);
-          clearTimeout(timeout); // 清除超时定时器
-          reject(error);
+          safeReject(error);
         };
 
         // ICE候选事件
         peerConnection.onicecandidate = (event) => {
           if (event.candidate) {
-            // 检查WebSocket连接状态
             if (this.ws && this.ws.readyState === WebSocket.OPEN) {
               this.ws.send(JSON.stringify({
                 type: 'webrtc_ice_candidate',
@@ -499,8 +536,7 @@ class HybridMessaging {
               }));
             } else {
               console.warn(`[P2P] WebSocket连接不可用，无法发送ICE候选到用户 ${toUserId}`);
-              // WebSocket断开时，直接拒绝P2P连接
-              reject(new Error('WebSocket连接断开，P2P连接失败'));
+              safeReject(new Error('WebSocket连接断开，P2P连接失败'));
             }
           }
         };
@@ -518,7 +554,7 @@ class HybridMessaging {
           }));
         } else {
           console.error(`[P2P] WebSocket连接不可用，无法发送Offer到用户 ${toUserId}`);
-          reject(new Error('WebSocket连接断开，无法发送Offer'));
+          safeReject(new Error('WebSocket连接断开，无法发送Offer'));
           return;
         }
 
@@ -526,20 +562,18 @@ class HybridMessaging {
         this.peerConnections.set(toUserId, peerConnection);
 
         // 设置连接超时
-        const timeout = setTimeout(() => {
-          // 清理连接
+        timeout = setTimeout(() => {
+          console.warn(`[P2P] 连接超时，当前状态: 连接=${peerConnection.connectionState}, ICE=${peerConnection.iceConnectionState}`);
           try {
             peerConnection.close();
           } catch (error) {
             console.warn(`[P2P] 关闭超时连接失败:`, error);
           }
-          
-          this.peerConnections.delete(toUserId);
-          reject(new Error(`P2P连接超时: 连接状态=${peerConnection.connectionState}, ICE状态=${peerConnection.iceConnectionState}`));
-        }, 10000); // 10秒超时
+          safeReject(new Error(`P2P连接超时: 连接状态=${peerConnection.connectionState}, ICE状态=${peerConnection.iceConnectionState}`));
+        }, 15000); // 增加到15秒超时
 
       } catch (error) {
-        reject(error);
+        safeReject(error);
       }
     });
   }
@@ -548,8 +582,27 @@ class HybridMessaging {
   async handleP2POffer(data) {
     try {
       const peerConnection = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
       });
+
+      // 监听连接状态变化
+      peerConnection.onconnectionstatechange = () => {
+        console.log(`[P2P] 接收方连接状态变化: ${peerConnection.connectionState}`);
+        if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'closed') {
+          console.warn(`[P2P] 接收方连接失败: ${peerConnection.connectionState}`);
+          this.p2pConnections.delete(data.from);
+          if (this.peerConnections.has(data.from)) {
+            this.peerConnections.delete(data.from);
+          }
+        }
+      };
+      
+      peerConnection.oniceconnectionstatechange = () => {
+        console.log(`[P2P] 接收方ICE连接状态变化: ${peerConnection.iceConnectionState}`);
+      };
 
       // 设置远程描述
       await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
@@ -562,7 +615,6 @@ class HybridMessaging {
           console.log(`P2P连接已接受: ${data.from}`);
           this.p2pConnections.set(data.from, dataChannel);
           
-          // 通知store更新P2P连接状态
           if (this.onP2PStatusChanged) {
             this.onP2PStatusChanged(data.from, 'connected');
           }
@@ -573,13 +625,16 @@ class HybridMessaging {
           if (message.type === 'direct_message' && this.onMessageReceived) {
             const msgData = {
               from: message.from,
-              to: this.currentUserId, // P2P消息是发给当前用户的
+              to: this.currentUserId,
               content: message.content,
               timestamp: message.timestamp,
-              method: 'P2P'
+              method: 'P2P',
+              messageType: message.messageType || 'text',
+              filePath: message.filePath || null,
+              fileName: message.fileName || null,
+              hiddenMessage: message.hiddenMessage || null
             };
             
-            // 存入本地数据库
             try {
               await addMessage(msgData);
               console.log('P2P消息已保存到本地数据库');
@@ -590,13 +645,24 @@ class HybridMessaging {
             this.onMessageReceived(msgData);
           }
         };
+        
+        dataChannel.onclose = () => {
+          console.log(`[P2P] 数据通道关闭: ${data.from}`);
+          this.p2pConnections.delete(data.from);
+          if (this.onP2PStatusChanged) {
+            this.onP2PStatusChanged(data.from, 'disconnected');
+          }
+        };
+        
+        dataChannel.onerror = (error) => {
+          console.error(`[P2P] 接收方数据通道错误:`, error);
+        };
       };
 
       // ICE候选事件
       peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
-          console.log(`[P2P] Sending ICE candidate to ${data.from}`);
-          // 检查WebSocket连接状态
+          console.log(`[P2P] 接收方发送ICE候选到 ${data.from}`);
           if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify({
               type: 'webrtc_ice_candidate',
@@ -614,7 +680,7 @@ class HybridMessaging {
       await peerConnection.setLocalDescription(answer);
 
       // 发送Answer
-      console.log(`[P2P] Sending answer to ${data.from}`);
+      console.log(`[P2P] 发送Answer到 ${data.from}`);
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({
           type: 'webrtc_answer',
@@ -623,47 +689,121 @@ class HybridMessaging {
         }));
       } else {
         console.error(`[P2P] WebSocket连接不可用，无法发送Answer到用户 ${data.from}`);
+        peerConnection.close();
         return;
       }
 
+      // 存储连接引用
       this.peerConnections.set(data.from, peerConnection);
+      
+      // 设置接收方连接超时
+      setTimeout(() => {
+        if (this.peerConnections.has(data.from) && 
+            peerConnection.connectionState !== 'connected' && 
+            peerConnection.connectionState !== 'closed') {
+          console.warn(`[P2P] 接收方连接超时: ${data.from}`);
+          peerConnection.close();
+          this.peerConnections.delete(data.from);
+          this.p2pConnections.delete(data.from);
+        }
+      }, 15000);
 
     } catch (error) {
       console.error('处理P2P Offer失败:', error);
+      if (this.peerConnections.has(data.from)) {
+        const pc = this.peerConnections.get(data.from);
+        pc.close();
+        this.peerConnections.delete(data.from);
+      }
+      this.p2pConnections.delete(data.from);
     }
   }
 
   // 处理P2P Answer
   async handleP2PAnswer(data) {
-    console.log(`[P2P] Received answer from ${data.from}`);
+    console.log(`[P2P] 收到来自 ${data.from} 的Answer`);
     try {
       const peerConnection = this.peerConnections.get(data.from);
-      if (peerConnection) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-        console.log(`[P2P] Remote description set for ${data.from}`);
+      if (!peerConnection) {
+        console.warn(`[P2P] 未找到与 ${data.from} 的连接`);
+        return;
       }
+      
+      if (peerConnection.connectionState === 'closed') {
+        console.warn(`[P2P] 与 ${data.from} 的连接已关闭`);
+        this.peerConnections.delete(data.from);
+        return;
+      }
+      
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+       console.log(`[P2P] 已为 ${data.from} 设置远程描述`);
+       
+       // 处理暂存的ICE候选
+       if (this.pendingIceCandidates && this.pendingIceCandidates.has(data.from)) {
+         const candidates = this.pendingIceCandidates.get(data.from);
+         console.log(`[P2P] 处理 ${candidates.length} 个暂存的ICE候选`);
+         for (const candidate of candidates) {
+           try {
+             await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+           } catch (err) {
+             console.warn(`[P2P] 添加暂存ICE候选失败:`, err);
+           }
+         }
+         this.pendingIceCandidates.delete(data.from);
+       }
+      
     } catch (error) {
-      console.error('处理P2P Answer失败:', error);
+      console.error(`[P2P] 处理来自 ${data.from} 的Answer失败:`, error);
+      // 清理失败的连接
+      if (this.peerConnections.has(data.from)) {
+        const pc = this.peerConnections.get(data.from);
+        pc.close();
+        this.peerConnections.delete(data.from);
+      }
+      this.p2pConnections.delete(data.from);
     }
   }
 
   // 处理ICE候选
   async handleIceCandidate(data) {
-    console.log(`[P2P] Received ICE candidate from ${data.from}`);
+    console.log(`[P2P] 收到来自 ${data.from} 的ICE候选`);
     try {
       const peerConnection = this.peerConnections.get(data.from);
-      if (peerConnection && data.candidate) {
-        // 确保在添加ICE候选之前，远程描述已经设置
-        if (peerConnection.remoteDescription) {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-          console.log(`[P2P] Added ICE candidate for ${data.from}`);
-        } else {
-          console.warn(`[P2P] Received ICE candidate before remote description was set for ${data.from}.`);
-          // 可以考虑将候选者暂存起来，等待远程描述设置后再添加
-        }
+      if (!peerConnection) {
+        console.warn(`[P2P] 未找到与 ${data.from} 的连接`);
+        return;
       }
+      
+      if (peerConnection.connectionState === 'closed') {
+        console.warn(`[P2P] 与 ${data.from} 的连接已关闭，忽略ICE候选`);
+        this.peerConnections.delete(data.from);
+        return;
+      }
+      
+      if (!data.candidate) {
+        console.log(`[P2P] 收到来自 ${data.from} 的空ICE候选（连接完成信号）`);
+        return;
+      }
+      
+      // 确保在添加ICE候选之前，远程描述已经设置
+      if (peerConnection.remoteDescription) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        console.log(`[P2P] 已为 ${data.from} 添加ICE候选`);
+      } else {
+        console.warn(`[P2P] 收到来自 ${data.from} 的ICE候选，但远程描述尚未设置`);
+        // 暂存ICE候选，等待远程描述设置后再添加
+        if (!this.pendingIceCandidates) {
+          this.pendingIceCandidates = new Map();
+        }
+        if (!this.pendingIceCandidates.has(data.from)) {
+          this.pendingIceCandidates.set(data.from, []);
+        }
+        this.pendingIceCandidates.get(data.from).push(data.candidate);
+      }
+      
     } catch (error) {
-      console.error('处理ICE候选失败:', error);
+      console.error(`[P2P] 处理来自 ${data.from} 的ICE候选失败:`, error);
+      // ICE候选失败通常不需要关闭整个连接，只记录错误
     }
   }
 
@@ -780,17 +920,8 @@ class HybridMessaging {
   setupBeforeUnloadHandler() {
     // 页面关闭前发送离线状态
     window.addEventListener('beforeunload', (event) => {
-      try {
-        // 使用同步的XMLHttpRequest确保在页面关闭时能发送请求
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/presence/status', false); // 同步请求
-        xhr.setRequestHeader('Authorization', `Bearer ${this.token}`);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.send(JSON.stringify({ status: 'offline' }));
-        console.log('[离线] 已发送离线状态');
-      } catch (error) {
-        console.warn('[离线] 发送离线状态失败:', error);
-      }
+      // 离线状态发送功能已移除
+      console.log('[离线] 离线状态发送功能已移除');
     });
     
     // 注释：移除页面隐藏时发送离线状态的逻辑
@@ -842,7 +973,20 @@ class HybridMessaging {
     }
     
     this.healthCheckInterval = setInterval(() => {
-      console.log('[连接健康检查] 开始检查P2P连接状态');
+      console.log('[连接健康检查] 开始检查连接状态');
+      
+      // 发送WebSocket心跳
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        try {
+          this.ws.send(JSON.stringify({
+            type: 'heartbeat',
+            timestamp: new Date().toISOString()
+          }));
+          console.log('[心跳] 已发送WebSocket心跳');
+        } catch (error) {
+          console.error('[心跳] 发送WebSocket心跳失败:', error);
+        }
+      }
       
       // 检查并清理无效的P2P连接
       const toRemove = [];
@@ -866,14 +1010,7 @@ class HybridMessaging {
         console.log(`[连接健康检查] 已清理用户 ${userId} 的无效连接`);
       });
       
-      // 清理过期的连接尝试记录
-      const now = Date.now();
-      this.connectionAttempts.forEach((attempts, userId) => {
-        if (now - attempts.lastAttempt > 300000) { // 5分钟后清理
-          this.connectionAttempts.delete(userId);
-          console.log(`[连接健康检查] 已清理用户 ${userId} 的过期连接尝试记录`);
-        }
-      });
+      // 预连接相关的连接尝试记录清理功能已删除
       
     }, 60000); // 每分钟检查一次
   }
@@ -914,9 +1051,13 @@ class HybridMessaging {
     });
     this.peerConnections.clear();
     
-    // 清理其他状态
-    this.preConnectQueue.clear();
-    this.connectionAttempts.clear();
+    // 预连接相关状态清理功能已删除
+    
+    // 清理暂存的ICE候选
+    if (this.pendingIceCandidates) {
+      this.pendingIceCandidates.clear();
+      console.log('已清理暂存的ICE候选');
+    }
     
     // 关闭WebSocket连接
     if (this.ws) {
@@ -925,15 +1066,9 @@ class HybridMessaging {
     }
   }
   
-  // 设置离线状态
+  // 离线状态设置功能已移除
   async setOfflineStatus() {
-    try {
-      const { hybridApi } = await import('../api/hybrid-api.js');
-      await hybridApi.setOnlineStatus('offline');
-      console.log('[离线] 已发送离线状态');
-    } catch (error) {
-      console.warn('[离线] 发送离线状态失败:', error);
-    }
+    console.log('[离线] 离线状态设置功能已移除');
   }
 }
 

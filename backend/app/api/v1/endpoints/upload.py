@@ -25,7 +25,7 @@ def get_db():
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 UPLOAD_BASE_DIR = os.path.join(BASE_DIR, "static", "images")
 os.makedirs(UPLOAD_BASE_DIR, exist_ok=True)
-print(f"[UPLOAD] 图片存储目录: {UPLOAD_BASE_DIR}")
+# 图片存储目录
 
 @router.post("/upload/image", response_model=Message)
 async def upload_image(
@@ -120,7 +120,7 @@ async def upload_image(
             recipient_online=False  # 确保图片消息始终保存到数据库
         )
         
-        print(f"[UPLOAD] 图片上传成功: {unique_filename}, 消息ID: {message.id}")
+        # 图片上传成功
         return message
         
     except Exception as e:
@@ -130,7 +130,7 @@ async def upload_image(
                 os.remove(file_path)
             except:
                 pass
-        print(f"[UPLOAD] 数据库保存失败，已删除文件: {relative_file_path}, 错误: {str(e)}")
+        # 数据库保存失败，已删除文件
         raise HTTPException(status_code=500, detail=f"保存消息失败: {str(e)}")
 
 @router.get("/images/{filename:path}")
@@ -160,7 +160,7 @@ async def get_image(filename: str):
     
     # 检查文件是否存在
     if not os.path.exists(file_path):
-        print(f"[GET_IMAGE] 文件不存在: {filename}")
+        # 文件不存在
         raise HTTPException(status_code=404, detail="图片不存在")
     
     # 检查是否为文件（不是目录）
@@ -174,7 +174,7 @@ async def get_image(filename: str):
         if not content_type or not content_type.startswith('image/'):
             content_type = 'image/jpeg'  # 默认类型
         
-        print(f"[GET_IMAGE] 返回图片: {filename}, 类型: {content_type}")
+        # 返回图片
         return FileResponse(
             file_path,
             media_type=content_type,
@@ -184,5 +184,5 @@ async def get_image(filename: str):
             }
         )
     except Exception as e:
-        print(f"[GET_IMAGE] 返回图片失败: {filename}, 错误: {str(e)}")
+        # 返回图片失败
         raise HTTPException(status_code=500, detail="图片读取失败")

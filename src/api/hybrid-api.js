@@ -117,21 +117,33 @@ export const signalingAPI = {
 };
 
 // 在线状态API
-export const presenceAPI = {
-  // 设置在线状态
-  setOnlineStatus: (status) => api.post('/presence/status', { status }),
-  
-  // 获取联系人在线状态
-  getContactsStatus: () => api.get('/presence/contacts'),
-  
-  // 心跳保持在线
-  heartbeat: () => api.post('/presence/heartbeat'),
-  
-  // 注册P2P能力
-  registerP2PCapability: (capabilities) => api.post('/presence/register_p2p', capabilities),
+const presenceAPI = {
+  // 发送心跳
+  heartbeat: () => {
+    return api.post('/user-status/heartbeat', {
+      timestamp: new Date().toISOString()
+    });
+  },
   
   // 获取用户状态
-  getUserStatus: (userId) => api.get(`/users/${userId}/status`)
+  getUserStatus: (userId) => {
+    return api.get(`/user-status/${userId}`);
+  },
+  
+  // 获取当前用户状态
+  getMyStatus: () => {
+    return api.get('/user-status/me');
+  },
+  
+  // 获取服务统计信息
+  getStats: () => {
+    return api.get('/user-status/stats');
+  },
+  
+  // 已移除的功能（保持兼容性）
+  setOnlineStatus: () => Promise.resolve({ data: { success: true, message: '在线状态功能已移除' } }),
+  getContactsStatus: () => Promise.resolve({ data: { success: true, data: [], message: '联系人状态功能已移除' } }),
+  registerP2PCapability: () => Promise.resolve({ data: { success: true, message: 'P2P注册功能已移除' } })
 };
 
 // 上传API

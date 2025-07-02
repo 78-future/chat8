@@ -560,11 +560,14 @@ export const hybridStore = {
       const { default: HybridMessaging } = await import('../services/HybridMessaging.js');
       
       const hybridMessaging = new HybridMessaging();
-      await hybridMessaging.initialize(state.user.id, state.token);
       
+      // 先设置回调函数，再初始化
       this.setHybridMessaging(hybridMessaging);
       
-      console.log('HybridMessaging服务初始化成功');
+      // 然后初始化连接
+      await hybridMessaging.initialize(state.user.id, state.token);
+      
+      console.log('HybridMessaging服务初始化成功，回调函数已设置');
       return true;
     } catch (error) {
       console.error('初始化HybridMessaging服务失败:', error);

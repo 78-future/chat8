@@ -325,11 +325,8 @@ async function initializeMessaging() {
       
       console.log('[状态同步] 混合消息系统初始化成功，WebSocket已自动发送在线状态');
       
-      // 开始定期更新在线状态
-      startStatusHeartbeat();
-      
-      // 加载联系人在线状态
-      await updateContactsOnlineStatus();
+      // 在线状态功能已移除
+      console.log('[状态] 在线状态功能已移除');
       
       // 加载所有联系人的消息历史
       await loadAllMessageHistory();
@@ -353,22 +350,7 @@ async function handleContactSelected(contact) {
   selectedContact.value = contact;
   hybridStore.setCurrentContact(contact);
   
-  // 尝试预连接到选中的联系人
-  if (messaging.value && contact && contact.id) {
-    try {
-      const preConnectResult = await messaging.value.preConnectToUser(contact.id);
-      
-      if (preConnectResult.success) {
-        if (!preConnectResult.existing) {
-          showNotification(`与 ${contact.username} 的P2P连接已建立`, 'success', '🔗');
-        }
-      } else {
-        // P2P预连接失败，将使用服务器转发
-      }
-    } catch (error) {
-      console.warn(`[聊天窗口] 预连接到联系人 ${contact.username} 时发生错误:`, error);
-    }
-  }
+  // 预连接功能已删除，现在在发送消息时自动尝试P2P连接
 }
 
 function handleUserStatusChange(userId, status) {
@@ -386,41 +368,14 @@ function handleUserStatusChange(userId, status) {
   }
 }
 
-// 开始状态心跳
+// 状态心跳功能已移除
 function startStatusHeartbeat() {
-  // 每30秒发送一次心跳
-  const heartbeatInterval = setInterval(async () => {
-    try {
-      await hybridApi.heartbeat();
-      // 同时更新联系人在线状态
-      await updateContactsOnlineStatus();
-    } catch (error) {
-      console.error('心跳失败:', error);
-    }
-  }, 30000);
-  
-  // 保存定时器引用以便清理
-  if (!window.hybridChatTimers) {
-    window.hybridChatTimers = [];
-  }
-  window.hybridChatTimers.push(heartbeatInterval);
+  console.log('[状态] 状态心跳功能已移除');
 }
 
-// 更新联系人在线状态
+// 联系人在线状态功能已移除
 async function updateContactsOnlineStatus() {
-  try {
-    const response = await hybridApi.getContactsStatus();
-    if (response.data && response.data.success) {
-      const statusList = response.data.data || [];
-      
-      statusList.forEach(statusInfo => {
-        const isOnline = statusInfo.status === 'online';
-        hybridStore.updateOnlineStatus(parseInt(statusInfo.userId), isOnline);
-      });
-    }
-  } catch (error) {
-    console.error('更新联系人在线状态失败:', error);
-  }
+  console.log('[状态] 联系人在线状态功能已移除');
 }
 
 // 加载所有联系人的消息历史
@@ -529,13 +484,8 @@ async function logout() {
     
     console.log('[状态同步] 用户退出，发送离线状态给所有好友');
     
-    // 1. 设置用户离线状态（这会通知所有好友）
-    try {
-      await hybridApi.setOnlineStatus('offline');
-      console.log('[状态同步] 离线状态已同步给好友');
-    } catch (statusError) {
-      console.warn('设置离线状态失败:', statusError);
-    }
+    // 离线状态设置功能已移除
+    console.log('[状态] 离线状态设置功能已移除');
     
     // 2. 清理HybridMessaging服务
     hybridStore.cleanupHybridMessaging();

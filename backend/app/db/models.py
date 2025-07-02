@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
 # 兼容所有SQLAlchemy版本的declarative_base导入
 try:
     from sqlalchemy.orm import declarative_base, relationship
