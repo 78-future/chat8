@@ -1,15 +1,15 @@
 from fastapi import WebSocket
 from fastapi.websockets import WebSocketDisconnect
 from .manager import ConnectionManager
-from db.database import SessionLocal
-from db import models
-from core.security import decode_access_token
+from app.db.database import SessionLocal
+from app.db import models
+from app.core.security import decode_access_token
 from datetime import datetime
 import json
 import asyncio
 import time
 from sqlalchemy.orm import Session
-from services.user_states_update import get_user_states_service
+from app.services.user_states_update import get_user_states_service
 
 
 
@@ -96,7 +96,7 @@ async def handle_private_message(from_id, msg, manager: ConnectionManager):
     # 保存消息到数据库（只有接收方不在线时才保存到服务器数据库）
     db = SessionLocal()
     try:
-        from services import message_service
+        from app.services import message_service
         saved_msg = message_service.send_message(
             db,
             from_id=from_id,
@@ -151,7 +151,7 @@ async def handle_private_message(from_id, msg, manager: ConnectionManager):
                 
             # 保存到接收方的本地数据库
             try:
-                from services.message_db_service import MessageDBService
+                from app.services.message_db_service import MessageDBService
                 MessageDBService.add_message(
                     user_id=to_id,
                     message_data=message_data
@@ -187,7 +187,7 @@ async def handle_image_message(from_id, msg, manager: ConnectionManager):
     # 保存消息到数据库（只有接收方不在线时才保存到服务器数据库）
     db = SessionLocal()
     try:
-        from services import message_service
+        from app.services import message_service
         saved_msg = message_service.send_message(
             db,
             from_id=from_id,
@@ -238,7 +238,7 @@ async def handle_image_message(from_id, msg, manager: ConnectionManager):
                 
             # 保存到接收方的本地数据库
             try:
-                from services.message_db_service import MessageDBService
+                from app.services.message_db_service import MessageDBService
                 MessageDBService.add_message(
                     user_id=to_id,
                     message_data=message_data
@@ -263,7 +263,7 @@ async def send_offline_messages(user_id: int, websocket: WebSocket):
     """发送用户离线期间收到的消息"""
     db = SessionLocal()
     try:
-        from services import message_service
+        from app.services import message_service
         # 获取用户的离线消息
         offline_messages = message_service.get_offline_messages(db, user_id)
         
@@ -305,7 +305,7 @@ async def send_offline_messages(user_id: int, websocket: WebSocket):
                     
                     # 保存到接收方的本地数据库
                     try:
-                        from services.message_db_service import MessageDBService
+                        from app.services.message_db_service import MessageDBService
                         MessageDBService.add_message(
                             user_id=user_id,
                             message_data=message_data
