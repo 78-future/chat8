@@ -1,2 +1,2 @@
-# chat8
+# Whisper
 Secure Chat System
